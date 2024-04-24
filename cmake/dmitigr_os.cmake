@@ -58,6 +58,6 @@ set(dmitigr_libs_os_deps base)
 # ------------------------------------------------------------------------------
 
 if(DMITIGR_LIBS_TESTS)
-  set(dmitigr_os_tests pipe pipe2 slow_write)
+  set(dmitigr_os_tests pipe pipe2 slow_write smbios)
   set(dmitigr_os_tests_target_link_libraries dmitigr_base)
 endif()
