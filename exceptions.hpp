@@ -51,7 +51,7 @@ class Sys_exception final : public Exception {
 public:
   /// The constructor.
   explicit Sys_exception(const std::string& what)
-    : Sys_exception{last_error(), what}
+    : Sys_exception{static_cast<int>(last_error()), what}
   {}
 
   /// @overload

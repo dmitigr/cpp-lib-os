@@ -14,6 +14,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#ifndef DMITIGR_OS_SMBIOS_HPP
+#define DMITIGR_OS_SMBIOS_HPP
+
 #include "../base/assert.hpp"
 #include "../base/stream.hpp"
 #include "../base/traits.hpp"
@@ -271,3 +274,5 @@ private:
 };
 
 } // namespace dmitigr::os::firmware
+
+#endif  // DMITIGR_OS_SMBIOS_HPP
