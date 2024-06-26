@@ -124,6 +124,16 @@ inline int exec_and_wait(const std::string& prog,
 
     close(fildes_to_child_in[1]);
 
+    struct Guard final {
+      ~Guard()
+      {
+        close(fildes_from_child_out);
+        close(fildes_from_child_err);
+      }
+      const int fildes_from_child_out{};
+      const int fildes_from_child_err{};
+    } const guard{fildes_from_child_out[0], fildes_from_child_err[0]};
+
     const auto read_from_child = [pid](const int fd, std::string& buf, const auto& handler)
     {
       buf.resize(16384);
@@ -159,8 +169,6 @@ inline int exec_and_wait(const std::string& prog,
       if (progress_handler)
         progress_handler(pid);
     }
-    close(fildes_from_child_out[0]);
-    close(fildes_from_child_err[0]);
     return wstatus;
   }
 }
