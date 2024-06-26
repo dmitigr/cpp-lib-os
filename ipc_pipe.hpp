@@ -68,6 +68,9 @@ inline std::vector<const char*> argvec(const std::vector<std::string>& args)
  * @param progress_handler A handler which is called periodically upon waiting of
  * `prog` to finish.
  *
+ * @details If any handler throws an exception, the attempt will be made to
+ * terminate the `prog` with SIGKILL signal and wait for `prog` to finish.
+ *
  * @par Requires
  * `poll_timeout >= 0`.
  *
@@ -146,28 +149,34 @@ inline int exec_and_wait(const std::string& prog,
     std::string stdout_buffer;
     std::string stderr_buffer;
     while (true) {
-      // Read from child.
-      pollfd fds[] = {
-        {fildes_from_child_out[0], POLLIN, 0},
-        {fildes_from_child_err[0], POLLIN, 0}
-      };
-      poll(fds, sizeof(fds) / sizeof(*fds), poll_timeout.count());
-      if (bool(fds[0].revents & POLLIN))
-        read_from_child(fds[0].fd, stdout_buffer, stdout_handler);
-      if (bool(fds[1].revents & POLLIN))
-        read_from_child(fds[1].fd, stderr_buffer, stderr_handler);
+      try {
+        // Read from child.
+        pollfd fds[] = {
+          {fildes_from_child_out[0], POLLIN, 0},
+          {fildes_from_child_err[0], POLLIN, 0}
+        };
+        poll(fds, sizeof(fds) / sizeof(*fds), poll_timeout.count());
+        if (bool(fds[0].revents & POLLIN))
+          read_from_child(fds[0].fd, stdout_buffer, stdout_handler);
+        if (bool(fds[1].revents & POLLIN))
+          read_from_child(fds[1].fd, stderr_buffer, stderr_handler);
 
-      /*
-       * Wait child to change state. Break only if
-       * it's exited either voluntarily or forcibly.
-       */
-      if (const pid_t p{waitpid(pid, &wstatus, WNOHANG)}) {
-        if (p == -1 || WIFEXITED(wstatus))
-          break;
+        /*
+         * Wait child to change state. Break only if
+         * it's exited either voluntarily or forcibly.
+         */
+        if (const pid_t p{waitpid(pid, &wstatus, WNOHANG)}) {
+          if (p == -1 || WIFEXITED(wstatus))
+            break;
+        }
+
+        if (progress_handler)
+          progress_handler(pid);
+      } catch (...) {
+        if (!kill(pid, SIGKILL))
+          waitpid(pid, &wstatus, 0);
+        throw;
       }
-
-      if (progress_handler)
-        progress_handler(pid);
     }
     return wstatus;
   }
