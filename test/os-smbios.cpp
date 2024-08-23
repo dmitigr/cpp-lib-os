@@ -55,6 +55,44 @@ int main()
       cout << "Serial number: " << bb_info->serial_number.value_or("") << endl;
     } else
       cout << "Baseboard info is not provided." << endl;
+
+    {
+      std::vector<fw::Smbios_table::Processor_info> processors;
+      smbios.processors_info(std::back_inserter(processors));
+      for (const auto& info : processors) {
+        std::cout << " ------------------------------------------------ " << std::endl;
+        std::cout << "socket: " << info.socket.value_or("NULL") << std::endl;
+        std::cout << "type: " << (int)info.processor_type << std::endl;
+        std::cout << "family: " << (int)info.processor_family << std::endl;
+        std::cout << "manufacturer: " << info.processor_manufacturer.value_or("NULL") << std::endl;
+        std::cout << "id: " << info.id << std::endl;
+        std::cout << "processor_version: " << info.processor_version.value_or("NULL") << std::endl;
+        std::cout << "voltage: " << (int)info.voltage << std::endl;
+        std::cout << "external_clock: " << info.external_clock << std::endl;
+        std::cout << "max_speed: " << info.max_speed << std::endl;
+        std::cout << "current_speed: " << info.current_speed << std::endl;
+        std::cout << "status: " << (int)info.status << std::endl;
+        std::cout << "processor_upgrade: " << (int)info.processor_upgrade << std::endl;
+        std::cout << "l1_cache_handle: " << info.l1_cache_handle << std::endl;
+        std::cout << "l2_cache_handle: " << info.l2_cache_handle << std::endl;
+        std::cout << "l3_cache_handle: " << info.l3_cache_handle << std::endl;
+        std::cout << "serial_number: " << info.serial_number.value_or("NULL") << std::endl;
+        std::cout << "asset_tag: " << info.asset_tag.value_or("NULL") << std::endl;
+        std::cout << "part_number: " << info.part_number.value_or("NULL") << std::endl;
+        std::cout << "core_count: " << (int)info.core_count << std::endl;
+        std::cout << "core_enabled: " << (int)info.core_enabled << std::endl;
+        std::cout << "thread_count: " << (int)info.thread_count << std::endl;
+        std::cout << "characteristics: " << info.processor_characteristics << std::endl;
+        std::cout << "family_2: " << (std::uint64_t)info.processor_family_2 << std::endl;
+        std::cout << "core_count_2: " << info.core_count_2 << std::endl;
+        std::cout << "core_enabled_2: " << info.core_enabled_2 << std::endl;
+        std::cout << "thread_count_2: " << info.thread_count_2 << std::endl;
+        std::cout << "thread_enabled: " << info.thread_enabled << std::endl;
+        std::cout << " ------------------------------------------------ " << std::endl;
+        std::cout << std::endl;
+      }
+    }
+
   } catch (const std::exception& e) {
     std::clog << "error: " << e.what() << std::endl;
     return 1;
