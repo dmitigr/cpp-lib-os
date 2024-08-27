@@ -61,9 +61,16 @@ public:
     [[nodiscard]] bool is_version_at_least(const Word major,
       const Word minor) const noexcept
     {
-      const Word required{(static_cast<Word>(major) << 8) | static_cast<Word>(minor)};
-      const Word current{(static_cast<Word>(major_version) << 8) |
-        static_cast<Word>(minor_version);
+      // Need to select a type 2 times larger than major/minor
+      using version_t = Dword;
+      static_assert(sizeof(major) + sizeof(minor) == sizeof(version_t));
+      constexpr auto shift_count = sizeof(version_t) * 8 / 2;
+
+      const version_t required{(static_cast<version_t>(major) << shift_count) |
+        static_cast<version_t>(minor)};
+      const version_t current{(static_cast<version_t>(major_version) << shift_count) |
+        static_cast<version_t>(minor_version)};
+
       return current >= required;
     }
   };
@@ -633,7 +640,7 @@ private:
   {
     static_assert(std::is_base_of_v<Structure, S>);
     S result;
-    result.type = s.type;
+    result.Structure::type = s.type;
     result.length = s.length;
     result.handle = s.handle;
     return result;
