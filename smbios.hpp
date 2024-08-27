@@ -58,20 +58,9 @@ public:
     Byte dmi_revision{};
     Dword length{};
 
-    [[nodiscard]] bool is_version_at_least(const Word major,
-      const Word minor) const noexcept
+    [[nodiscard]] bool is_version_ge(const Byte major, const Byte minor) const noexcept
     {
-      // Need to select a type 2 times larger than major/minor
-      using version_t = Dword;
-      static_assert(sizeof(major) + sizeof(minor) == sizeof(version_t));
-      constexpr auto shift_count = sizeof(version_t) * 8 / 2;
-
-      const version_t required{(static_cast<version_t>(major) << shift_count) |
-        static_cast<version_t>(minor)};
-      const version_t current{(static_cast<version_t>(major_version) << shift_count) |
-        static_cast<version_t>(minor_version)};
-
-      return current >= required;
+      return major_version >= major && minor_version >= minor;
     }
   };
   static_assert(std::is_standard_layout_v<Header>);
@@ -572,7 +561,7 @@ public:
       result.emplace_back(make_structure<Processor_info>(*s));
       auto& info = result.back();
 
-      if (header.is_version_at_least(2,0)) {
+      if (header.is_version_ge(2,0)) {
         info.socket = std::move(field<decltype(info.socket)>(s, 0x04));
         info.type = static_cast<decltype(info.type)>(
           field<std::underlying_type_t<decltype(info.type)>>(s, 0x05)
@@ -591,38 +580,38 @@ public:
         );
       }
 
-      if (header.is_version_at_least(2,1)) {
+      if (header.is_version_ge(2,1)) {
         info.l1_cache_handle = field<decltype(info.l1_cache_handle)>(s, 0x1A);
         info.l2_cache_handle = field<decltype(info.l2_cache_handle)>(s, 0x1C);
         info.l3_cache_handle = field<decltype(info.l3_cache_handle)>(s, 0x1E);
       }
 
-      if (header.is_version_at_least(2,3)) {
+      if (header.is_version_ge(2,3)) {
         info.serial_number = std::move(field<decltype(info.serial_number)>(s, 0x20));
         info.asset_tag = std::move(field<decltype(info.asset_tag)>(s, 0x21));
         info.part_number = std::move(field<decltype(info.part_number)>(s, 0x22));
       }
 
-      if (header.is_version_at_least(2,5)) {
+      if (header.is_version_ge(2,5)) {
         info.core_count = field<decltype(info.core_count)>(s, 0x23);
         info.core_enabled = field<decltype(info.core_enabled)>(s, 0x24);
         info.thread_count = field<decltype(info.thread_count)>(s, 0x25);
         info.characteristics = field<decltype(info.characteristics)>(s, 0x26);
       }
 
-      if (header.is_version_at_least(2,6)) {
+      if (header.is_version_ge(2,6)) {
         info.family_2 = static_cast<decltype(info.family_2)>(
           field<std::underlying_type_t<decltype(info.family_2)>>(s, 0x28)
         );
       }
 
-      if (header.is_version_at_least(3,0)) {
+      if (header.is_version_ge(3,0)) {
         info.core_count_2 = field<decltype(info.core_count_2)>(s, 0x2A);
         info.core_enabled_2 = field<decltype(info.core_enabled_2)>(s, 0x2C);
         info.thread_count_2 = field<decltype(info.thread_count_2)>(s, 0x2E);
       }
 
-      if (header.is_version_at_least(3,6)) {
+      if (header.is_version_ge(3,6)) {
         info.thread_enabled = field<decltype(info.thread_enabled)>(s, 0x30);
       }
     }
