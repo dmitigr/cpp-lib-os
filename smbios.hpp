@@ -58,11 +58,12 @@ public:
     Byte dmi_revision{};
     Dword length{};
 
-    [[nodiscard]] inline bool version_check(const Byte major, const Byte minor) const {
-      const std::uint32_t required
-        = (static_cast<std::uint32_t>(major) << 16) | static_cast<std::uint32_t>(minor);
-      const std::uint32_t current
-        = (static_cast<std::uint32_t>(this->major_version) << 16) | static_cast<std::uint32_t>(this->minor_version);
+    [[nodiscard]] bool is_version_at_least(const Word major,
+      const Word minor) const noexcept
+    {
+      const Word required{(static_cast<Word>(major) << 8) | static_cast<Word>(minor)};
+      const Word current{(static_cast<Word>(major_version) << 8) |
+        static_cast<Word>(minor_version);
       return current >= required;
     }
   };
@@ -99,7 +100,7 @@ public:
   };
 
   struct Processor_info final : Structure {
-    enum class ProcessorType : Byte {
+    enum class Type : Byte {
       Unspecified = 0x00,
       Other [[maybe_unused]] = 0x01,
       Unknown [[maybe_unused]] = 0x02,
@@ -109,7 +110,7 @@ public:
       VideoProcessor [[maybe_unused]] = 0x06
     };
 
-    enum class ProcessorUpgrade : Byte {
+    enum class Upgrade : Byte {
       Unspecified = 0x00,
       Other [[maybe_unused]] = 0x01,
       Unknown [[maybe_unused]] = 0x02,
@@ -185,7 +186,7 @@ public:
       SocketBGA5773 [[maybe_unused]] = 0x48
     };
 
-    enum class ProcessorFamily : Word {
+    enum class Family : Word {
       Unspecified = 0x00,
       // indicator for Processor_info::processor_family
       // just use Processor_info::processor_family_2 field
@@ -430,22 +431,22 @@ public:
 
     // 2.0+
     std::optional<std::string> socket;
-    ProcessorType processor_type = ProcessorType::Unspecified;
-    ProcessorFamily processor_family = ProcessorFamily::Unspecified;
-    std::optional<std::string> processor_manufacturer;
-    Qword id = 0;
-    std::optional<std::string> processor_version;
-    Byte voltage = 0;
-    Word external_clock = 0;
-    Word max_speed = 0;
-    Word current_speed = 0;
-    Byte status = 0;
-    ProcessorUpgrade processor_upgrade = ProcessorUpgrade::Unspecified;
+    Type type{Type::Unspecified};
+    Family family{Family::Unspecified};
+    std::optional<std::string> manufacturer;
+    Qword id{};
+    std::optional<std::string> version;
+    Byte voltage{};
+    Word external_clock{};
+    Word max_speed{};
+    Word current_speed{};
+    Byte status{};
+    Upgrade upgrade{Upgrade::Unspecified};
 
     // 2.1+
-    Word l1_cache_handle = 0;
-    Word l2_cache_handle = 0;
-    Word l3_cache_handle = 0;
+    Word l1_cache_handle{};
+    Word l2_cache_handle{};
+    Word l3_cache_handle{};
 
     // 2.3+
     std::optional<std::string> serial_number;
@@ -453,21 +454,21 @@ public:
     std::optional<std::string> part_number;
 
     // 2.5+
-    Byte core_count = 0;
-    Byte core_enabled = 0;
-    Byte thread_count = 0;
-    Word processor_characteristics = 0;
+    Byte core_count{};
+    Byte core_enabled{};
+    Byte thread_count{};
+    Word characteristics{};
 
     // 2.6+
-    ProcessorFamily processor_family_2 = ProcessorFamily::Unspecified;
+    Family family_2{Family::Unspecified};
 
     // 3.0+
-    Word core_count_2 = 0;
-    Word core_enabled_2 = 0;
-    Word thread_count_2 = 0;
+    Word core_count_2{};
+    Word core_enabled_2{};
+    Word thread_count_2{};
 
     // 3.6+
-    Word thread_enabled = 0;
+    Word thread_enabled{};
   };
 
   Smbios_table(const Byte* const data, const std::size_t size)
@@ -551,75 +552,76 @@ public:
     return result;
   }
 
-  template<std::output_iterator<Processor_info> OutputIt>
-  void processors_info(OutputIt it) const {
-    const Header header = this->header();
+#ifdef _WIN32
+  std::vector<Processor_info> processors_info() const
+  {
+    const auto header = this->header();
 
+    std::vector<Processor_info> result;
     for (auto* s = first_structure(); s; s = next_structure(s)) {
-      if (s->type != 0x04) {
+      if (s->type != 0x04)
         continue;
-      }
-      auto info = make_structure<Processor_info>(*s);
 
-      if (header.version_check(2,0)) {
+      result.emplace_back(make_structure<Processor_info>(*s));
+      auto& info = result.back();
+
+      if (header.is_version_at_least(2,0)) {
         info.socket = std::move(field<decltype(info.socket)>(s, 0x04));
-        info.processor_type = static_cast<decltype(info.processor_type)>(
-          field<std::underlying_type_t<decltype(info.processor_type)>>(s, 0x05)
+        info.type = static_cast<decltype(info.type)>(
+          field<std::underlying_type_t<decltype(info.type)>>(s, 0x05)
         );
-        // we get BYTE field but cast to WORD (enum ProcessorFamily)
-        info.processor_family = static_cast<decltype(info.processor_family)>(field<Byte>(s, 0x06));
-
-        info.processor_manufacturer = std::move(field<decltype(info.processor_manufacturer)>(s, 0x07));
+        info.family = static_cast<decltype(info.family)>(field<Byte>(s, 0x06));
+        info.manufacturer = std::move(field<decltype(info.manufacturer)>(s, 0x07));
         info.id = field<decltype(info.id)>(s, 0x08);
-        info.processor_version = std::move(field<decltype(info.processor_version)>(s, 0x10));
+        info.version = std::move(field<decltype(info.version)>(s, 0x10));
         info.voltage = field<decltype(info.voltage)>(s, 0x11);
         info.external_clock = field<decltype(info.external_clock)>(s, 0x12);
         info.max_speed = field<decltype(info.max_speed)>(s, 0x14);
         info.current_speed = field<decltype(info.current_speed)>(s, 0x16);
         info.status = field<decltype(info.status)>(s, 0x18);
-        info.processor_upgrade = static_cast<decltype(info.processor_upgrade)>(
-          field<std::underlying_type_t<decltype(info.processor_upgrade)>>(s, 0x19)
+        info.upgrade = static_cast<decltype(info.upgrade)>(
+          field<std::underlying_type_t<decltype(info.upgrade)>>(s, 0x19)
         );
       }
 
-      if (header.version_check(2,1)) {
+      if (header.is_version_at_least(2,1)) {
         info.l1_cache_handle = field<decltype(info.l1_cache_handle)>(s, 0x1A);
         info.l2_cache_handle = field<decltype(info.l2_cache_handle)>(s, 0x1C);
         info.l3_cache_handle = field<decltype(info.l3_cache_handle)>(s, 0x1E);
       }
 
-      if (header.version_check(2,3)) {
+      if (header.is_version_at_least(2,3)) {
         info.serial_number = std::move(field<decltype(info.serial_number)>(s, 0x20));
         info.asset_tag = std::move(field<decltype(info.asset_tag)>(s, 0x21));
         info.part_number = std::move(field<decltype(info.part_number)>(s, 0x22));
       }
 
-      if (header.version_check(2,5)) {
+      if (header.is_version_at_least(2,5)) {
         info.core_count = field<decltype(info.core_count)>(s, 0x23);
         info.core_enabled = field<decltype(info.core_enabled)>(s, 0x24);
         info.thread_count = field<decltype(info.thread_count)>(s, 0x25);
-        info.processor_characteristics = field<decltype(info.processor_characteristics)>(s, 0x26);
+        info.characteristics = field<decltype(info.characteristics)>(s, 0x26);
       }
 
-      if (header.version_check(2,6)) {
-        info.processor_family_2 = static_cast<decltype(info.processor_family_2)>(
-          field<std::underlying_type_t<decltype(info.processor_family_2)>>(s, 0x28)
+      if (header.is_version_at_least(2,6)) {
+        info.family_2 = static_cast<decltype(info.family_2)>(
+          field<std::underlying_type_t<decltype(info.family_2)>>(s, 0x28)
         );
       }
 
-      if (header.version_check(3,0)) {
+      if (header.is_version_at_least(3,0)) {
         info.core_count_2 = field<decltype(info.core_count_2)>(s, 0x2A);
         info.core_enabled_2 = field<decltype(info.core_enabled_2)>(s, 0x2C);
         info.thread_count_2 = field<decltype(info.thread_count_2)>(s, 0x2E);
       }
 
-      if (header.version_check(3,6)) {
+      if (header.is_version_at_least(3,6)) {
         info.thread_enabled = field<decltype(info.thread_enabled)>(s, 0x30);
       }
-
-      *it++ = std::move(info);
     }
+    return result;
   }
+#endif
 
 private:
   std::vector<Byte> data_;

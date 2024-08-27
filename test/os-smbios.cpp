@@ -56,9 +56,9 @@ int main()
     } else
       cout << "Baseboard info is not provided." << endl;
 
+#ifdef _WIN32
     {
-      std::vector<fw::Smbios_table::Processor_info> processors;
-      smbios.processors_info(std::back_inserter(processors));
+      const auto processors = mbios.processors_info();
       for (const auto& info : processors) {
         std::cout << " ------------------------------------------------ " << std::endl;
         std::cout << "socket: " << info.socket.value_or("NULL") << std::endl;
@@ -92,6 +92,7 @@ int main()
         std::cout << std::endl;
       }
     }
+#endif
 
   } catch (const std::exception& e) {
     std::clog << "error: " << e.what() << std::endl;
