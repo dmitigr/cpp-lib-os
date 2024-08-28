@@ -56,7 +56,6 @@ int main()
     } else
       cout << "Baseboard info is not provided." << endl;
 
-#ifdef _WIN32
     {
       const auto processors = smbios.processors_info();
       for (const auto& info : processors) {
@@ -92,7 +91,6 @@ int main()
         std::cout << std::endl;
       }
     }
-#endif
 
   } catch (const std::exception& e) {
     std::clog << "error: " << e.what() << std::endl;

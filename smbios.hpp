@@ -37,6 +37,7 @@
 #include <string_view>
 #include <type_traits>
 #include <vector>
+#include <optional>
 #ifdef __linux__
 #include <fstream>
 #endif
@@ -50,21 +51,24 @@ public:
   using Dword = std::uint32_t;
   using Qword = std::uint64_t;
 
+  struct Version final {
 #ifdef _WIN32
-  struct Header final {
     Byte used_20_calling_method{};
+#endif
     Byte major_version{};
     Byte minor_version{};
     Byte dmi_revision{};
+
+#ifdef _WIN32
     Dword length{};
+#endif
 
     [[nodiscard]] bool is_version_ge(const Byte major, const Byte minor) const noexcept
     {
       return major_version >= major && minor_version >= minor;
     }
   };
-  static_assert(std::is_standard_layout_v<Header>);
-#endif
+  static_assert(std::is_standard_layout_v<Version>);
 
   struct Structure {
     Byte type{};
@@ -467,45 +471,12 @@ public:
     Word thread_enabled{};
   };
 
-  Smbios_table(const Byte* const data, const std::size_t size)
-    : data_(size)
-  {
-    std::memcpy(data_.data(), data, size);
-#ifdef _WIN32
-    if (size != header().length)
-      throw std::invalid_argument{"invalid SMBIOS firmware table provided"};
-#endif
-  }
-
   static Smbios_table from_system()
   {
     Smbios_table result;
-    auto& rd = result.data_;
-#ifdef _WIN32
-    rd.resize(GetSystemFirmwareTable('RSMB', 0, nullptr, 0));
-    if (rd.empty() || !GetSystemFirmwareTable('RSMB', 0, rd.data(), rd.size()))
-      throw winbase::Sys_exception{"cannot get SMBIOS firmware table"};
-#elif __linux__
-    const std::filesystem::path dmi_path{"/sys/firmware/dmi/tables/DMI"};
-    std::ifstream dmi{dmi_path, std::ios::binary};
-    if (!dmi)
-      throw std::runtime_error{"cannot open "+dmi_path.string()};
-
-    rd.resize(seekg_size(dmi));
-    if (!dmi.read(reinterpret_cast<char*>(rd.data()), rd.size()))
-      throw std::runtime_error{"cannot read "+dmi_path.string()};
-#else
-    #error Unsupported OS family
-#endif
+    result.data_ = load_raw_data();
     return result;
   }
-
-#ifdef _WIN32
-  Header header() const
-  {
-    return *reinterpret_cast<const Header*>(data_.data());
-  }
-#endif
 
   const std::vector<Byte>& raw() const noexcept
   {
@@ -548,10 +519,9 @@ public:
     return result;
   }
 
-#ifdef _WIN32
   std::vector<Processor_info> processors_info() const
   {
-    const auto header = this->header();
+    const auto version = Smbios_table::version();
 
     std::vector<Processor_info> result;
     for (auto* s = first_structure(); s; s = next_structure(s)) {
@@ -561,7 +531,7 @@ public:
       result.emplace_back(make_structure<Processor_info>(*s));
       auto& info = result.back();
 
-      if (header.is_version_ge(2,0)) {
+      if (version.is_version_ge(2,0)) {
         info.socket = std::move(field<decltype(info.socket)>(s, 0x04));
         info.type = static_cast<decltype(info.type)>(
           field<std::underlying_type_t<decltype(info.type)>>(s, 0x05)
@@ -580,44 +550,43 @@ public:
         );
       }
 
-      if (header.is_version_ge(2,1)) {
+      if (version.is_version_ge(2,1)) {
         info.l1_cache_handle = field<decltype(info.l1_cache_handle)>(s, 0x1A);
         info.l2_cache_handle = field<decltype(info.l2_cache_handle)>(s, 0x1C);
         info.l3_cache_handle = field<decltype(info.l3_cache_handle)>(s, 0x1E);
       }
 
-      if (header.is_version_ge(2,3)) {
+      if (version.is_version_ge(2,3)) {
         info.serial_number = std::move(field<decltype(info.serial_number)>(s, 0x20));
         info.asset_tag = std::move(field<decltype(info.asset_tag)>(s, 0x21));
         info.part_number = std::move(field<decltype(info.part_number)>(s, 0x22));
       }
 
-      if (header.is_version_ge(2,5)) {
+      if (version.is_version_ge(2,5)) {
         info.core_count = field<decltype(info.core_count)>(s, 0x23);
         info.core_enabled = field<decltype(info.core_enabled)>(s, 0x24);
         info.thread_count = field<decltype(info.thread_count)>(s, 0x25);
         info.characteristics = field<decltype(info.characteristics)>(s, 0x26);
       }
 
-      if (header.is_version_ge(2,6)) {
+      if (version.is_version_ge(2,6)) {
         info.family_2 = static_cast<decltype(info.family_2)>(
           field<std::underlying_type_t<decltype(info.family_2)>>(s, 0x28)
         );
       }
 
-      if (header.is_version_ge(3,0)) {
+      if (version.is_version_ge(3,0)) {
         info.core_count_2 = field<decltype(info.core_count_2)>(s, 0x2A);
         info.core_enabled_2 = field<decltype(info.core_enabled_2)>(s, 0x2C);
         info.thread_count_2 = field<decltype(info.thread_count_2)>(s, 0x2E);
       }
 
-      if (header.is_version_ge(3,6)) {
+      if (version.is_version_ge(3,6)) {
         info.thread_enabled = field<decltype(info.thread_enabled)>(s, 0x30);
       }
     }
     return result;
   }
-#endif
 
 private:
   std::vector<Byte> data_;
@@ -657,22 +626,14 @@ private:
 
   const Structure* first_structure() const noexcept
   {
-#ifdef _WIN32
-    return reinterpret_cast<const Structure*>(data_.data() + sizeof(Header));
-#else
     return reinterpret_cast<const Structure*>(data_.data());
-#endif
   }
 
   const Structure* next_structure(const Structure* const s) const noexcept
   {
     DMITIGR_ASSERT(s);
     bool is_prev_char_zero{};
-#ifdef _WIN32
-    const std::ptrdiff_t length = data_.size() - sizeof(Header);
-#else
     const std::ptrdiff_t length = data_.size();
-#endif
     const auto* const fst = first_structure();
     for (const char* ptr{unformed_section(s)};
          ptr + 1 - reinterpret_cast<const char*>(fst) < length; ++ptr) {
@@ -718,6 +679,85 @@ private:
       return *reinterpret_cast<const Dt*>(ptr);
     } else
       static_assert(false_value<T>, "unsupported type");
+  }
+
+  static std::vector<Byte> read_file(const std::filesystem::path& path) {
+    if (!std::filesystem::exists(path)) {
+      throw std::runtime_error(
+        std::format("{} - is not exists", path.string()));
+    }
+    if (!std::filesystem::is_regular_file(path)) {
+      throw std::runtime_error(
+        std::format("{} - is not regular file", path.string()));
+    }
+    std::ifstream file;
+    file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    file.open(path, std::ios::in | std::ios::binary | std::ios::ate);
+    std::vector<Byte> buffer(file.tellg());
+    file.seekg(0, std::ios::beg);
+    file.read(
+      reinterpret_cast<char*>(buffer.data()),
+      static_cast<std::streamsize>(buffer.size())
+    );
+    return buffer;
+  }
+
+  static Version version() {
+    // Header is immutable, we can cache it for performance
+    // purposes
+    static std::optional<Version> version = std::nullopt;
+    if (version) {
+      return version.value();
+    }
+
+#ifdef _WIN32
+    // TODO: todo
+#elif __linux__
+    using namespace std::literals;
+    const std::vector<Byte> header_data
+      = read_file("/sys/firmware/dmi/tables/smbios_entry_point");
+
+    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L6068
+    if (header_data.size() < 24)
+      throw std::runtime_error(std::format(
+        "Invalid smbios type - 'header_data.size() < 24'"));
+
+    const std::string_view head_marker(
+      reinterpret_cast<const char*>(header_data.data()),
+      reinterpret_cast<const char*>(header_data.data() + 5));
+
+    if (head_marker != "_SM3_"sv)
+      throw std::runtime_error(
+        "Invalid smbios type - header mark is not '_SM3_'");
+
+    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L5721C6-L5721C26
+    if (header_data[0x06] > 0x20)
+      throw std::runtime_error(std::format(
+        "Entry point length too large ({} bytes, expected {})",
+        static_cast<unsigned int>(header_data[0x06]), 0x18U));
+
+    version = Version{
+      .major_version = header_data[0x07],
+      .minor_version = header_data[0x08],
+      .dmi_revision = header_data[0x09],
+    };
+#else
+    #error Unsupported OS family
+#endif
+    return version.value();
+  }
+
+public:
+  static std::vector<Byte> load_raw_data() {
+    std::vector<Byte> data;
+#ifdef _WIN32
+    // TODO: todo
+#elif __linux__
+    data = read_file("/sys/firmware/dmi/tables/DMI");
+#else
+    #error Unsupported OS family
+#endif
+    return data;
   }
 };
 
