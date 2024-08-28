@@ -681,15 +681,15 @@ private:
       static_assert(false_value<T>, "unsupported type");
   }
 
-  static std::vector<Byte> read_file(const std::filesystem::path& path) {
-    if (!std::filesystem::exists(path)) {
-      throw std::runtime_error(
-        std::format("{} - is not exists", path.string()));
-    }
-    if (!std::filesystem::is_regular_file(path)) {
-      throw std::runtime_error(
-        std::format("{} - is not regular file", path.string()));
-    }
+#ifdef __linux__
+  static std::vector<Byte> read_file(const std::filesystem::path& path)
+  {
+    if (!std::filesystem::exists(path))
+      throw std::runtime_error(path.string() + " - is not exists");
+
+    if (!std::filesystem::is_regular_file(path))
+      throw std::runtime_error(path.string() + " - is not regular file");
+
     std::ifstream file;
     file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     file.open(path, std::ios::in | std::ios::binary | std::ios::ate);
@@ -697,18 +697,18 @@ private:
     file.seekg(0, std::ios::beg);
     file.read(
       reinterpret_cast<char*>(buffer.data()),
-      static_cast<std::streamsize>(buffer.size())
-    );
+      static_cast<std::streamsize>(buffer.size()));
     return buffer;
   }
+#endif
 
-  static Version version() {
+  static Version version()
+  {
     // Header is immutable, we can cache it for performance
     // purposes
     static std::optional<Version> version = std::nullopt;
-    if (version) {
+    if (version)
       return version.value();
-    }
 
 #ifdef _WIN32
     // TODO: todo
@@ -719,12 +719,12 @@ private:
 
     // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L6068
     if (header_data.size() < 24)
-      throw std::runtime_error(std::format(
-        "Invalid smbios type - 'header_data.size() < 24'"));
+      throw std::runtime_error(
+        "Invalid smbios type - 'header_data.size() < 24'");
 
     const std::string_view head_marker(
       reinterpret_cast<const char*>(header_data.data()),
-      reinterpret_cast<const char*>(header_data.data() + 5));
+      5);
 
     if (head_marker != "_SM3_"sv)
       throw std::runtime_error(
@@ -732,22 +732,19 @@ private:
 
     // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L5721C6-L5721C26
     if (header_data[0x06] > 0x20)
-      throw std::runtime_error(std::format(
-        "Entry point length too large ({} bytes, expected {})",
-        static_cast<unsigned int>(header_data[0x06]), 0x18U));
+      throw std::runtime_error("Entry point length too large");
 
-    version = Version{
-      .major_version = header_data[0x07],
-      .minor_version = header_data[0x08],
-      .dmi_revision = header_data[0x09],
-    };
+    Version ver;
+    ver.major_version = header_data[0x07];
+    ver.minor_version = header_data[0x08];
+    ver.dmi_revision = header_data[0x09];
+    version = ver;
 #else
     #error Unsupported OS family
 #endif
     return version.value();
   }
 
-public:
   static std::vector<Byte> load_raw_data() {
     std::vector<Byte> data;
 #ifdef _WIN32
