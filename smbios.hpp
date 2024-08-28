@@ -478,12 +478,12 @@ public:
     return result;
   }
 
-  const std::vector<Byte>& raw() const noexcept
+  [[nodiscard]] const std::vector<Byte>& raw() const noexcept
   {
     return data_;
   }
 
-  Bios_info bios_info() const
+  [[nodiscard]] Bios_info bios_info() const
   {
     const auto* const s = structure(0);
     auto result = make_structure<Bios_info>(*s);
@@ -494,7 +494,7 @@ public:
     return result;
   }
 
-  Sys_info sys_info() const
+  [[nodiscard]] Sys_info sys_info() const
   {
     const auto* const s = structure(1);
     auto result = make_structure<Sys_info>(*s);
@@ -506,7 +506,7 @@ public:
     return result;
   }
 
-  std::optional<Baseboard_info> baseboard_info() const
+  [[nodiscard]] std::optional<Baseboard_info> baseboard_info() const
   {
     const auto* const s = structure(2, true);
     if (!s)
@@ -519,7 +519,7 @@ public:
     return result;
   }
 
-  std::vector<Processor_info> processors_info() const
+  [[nodiscard]] std::vector<Processor_info> processors_info() const
   {
     const auto version = Smbios_table::version();
 
@@ -604,7 +604,7 @@ private:
     return result;
   }
 
-  const Structure* structure(const Byte type,
+  [[nodiscard]] const Structure* structure(const Byte type,
     const bool no_throw_if_not_found = false) const
   {
     for (auto* s = first_structure(); s; s = next_structure(s)) {
@@ -624,7 +624,7 @@ private:
     return reinterpret_cast<const char*>(s) + s->length;
   }
 
-  const Structure* first_structure() const noexcept
+  [[nodiscard]] const Structure* first_structure() const noexcept
   {
     return reinterpret_cast<const Structure*>(data_.data());
   }
@@ -633,7 +633,7 @@ private:
   {
     DMITIGR_ASSERT(s);
     bool is_prev_char_zero{};
-    const std::ptrdiff_t length = data_.size();
+    const auto length = static_cast<std::ptrdiff_t>(data_.size());
     const auto* const fst = first_structure();
     for (const char* ptr{unformed_section(s)};
          ptr + 1 - reinterpret_cast<const char*>(fst) < length; ++ptr) {
