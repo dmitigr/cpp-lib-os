@@ -52,16 +52,9 @@ public:
   using Qword = std::uint64_t;
 
   struct Version final {
-#ifdef _WIN32
-    Byte used_20_calling_method{};
-#endif
     Byte major_version{};
     Byte minor_version{};
     Byte dmi_revision{};
-
-#ifdef _WIN32
-    Dword length{};
-#endif
 
     [[nodiscard]] bool is_version_ge(const Byte major, const Byte minor) const noexcept
     {
@@ -471,6 +464,55 @@ public:
     Word thread_enabled{};
   };
 
+  static Version version()
+  {
+    // Header is immutable, we can cache it for performance
+    // purposes
+    static std::optional<Version> version = std::nullopt;
+    if (version)
+      return version.value();
+
+#ifdef _WIN32
+    const auto win_smbios = WinSMBIOSData::load();
+    const auto* header = win_smbios.header();
+    Version ver;
+    ver.major_version = header->SMBIOSMajorVersion;
+    ver.minor_version = header->SMBIOSMinorVersion;
+    ver.dmi_revision = header->DmiRevision;
+    version = ver;
+#elif __linux__
+    using namespace std::literals;
+    const std::vector<Byte> header_data
+      = read_file("/sys/firmware/dmi/tables/smbios_entry_point");
+
+    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L6068
+    if (header_data.size() < 24)
+      throw std::runtime_error(
+        "Invalid smbios type - 'header_data.size() < 24'");
+
+    const std::string_view head_marker(
+      reinterpret_cast<const char*>(header_data.data()),
+      5);
+
+    if (head_marker != "_SM3_"sv)
+      throw std::runtime_error(
+        "Invalid smbios type - header mark is not '_SM3_'");
+
+    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L5721C6-L5721C26
+    if (header_data[0x06] > 0x20)
+      throw std::runtime_error("Entry point length too large");
+
+    Version ver;
+    ver.major_version = header_data[0x07];
+    ver.minor_version = header_data[0x08];
+    ver.dmi_revision = header_data[0x09];
+    version = ver;
+#else
+    #error Unsupported OS family
+#endif
+    return version.value();
+  }
+
   static Smbios_table from_system()
   {
     Smbios_table result;
@@ -702,53 +744,44 @@ private:
   }
 #endif
 
-  static Version version()
-  {
-    // Header is immutable, we can cache it for performance
-    // purposes
-    static std::optional<Version> version = std::nullopt;
-    if (version)
-      return version.value();
-
 #ifdef _WIN32
-    // TODO: todo
-#elif __linux__
-    using namespace std::literals;
-    const std::vector<Byte> header_data
-      = read_file("/sys/firmware/dmi/tables/smbios_entry_point");
+  struct WinSMBIOSData {
+    // https://learn.microsoft.com/ru-ru/windows/win32/api/sysinfoapi/nf-sysinfoapi-getsystemfirmwaretable
+    struct RawSMBIOSHeaderData {
+      Byte Used20CallingMethod [[maybe_unused]];
+      Byte SMBIOSMajorVersion;
+      Byte SMBIOSMinorVersion;
+      Byte DmiRevision;
+      Dword Length [[maybe_unused]];
+    };
+    static_assert(std::is_standard_layout_v<RawSMBIOSHeaderData>);
 
-    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L6068
-    if (header_data.size() < 24)
-      throw std::runtime_error(
-        "Invalid smbios type - 'header_data.size() < 24'");
+    std::vector<Byte> data;
 
-    const std::string_view head_marker(
-      reinterpret_cast<const char*>(header_data.data()),
-      5);
+    [[nodiscard]] const RawSMBIOSHeaderData* header() const {
+      if (data.size() < sizeof(RawSMBIOSHeaderData))
+        throw std::runtime_error("header_data.size() < sizeof(RawSMBIOSData)");
+      return reinterpret_cast<const RawSMBIOSHeaderData*>(data.data());
+    }
 
-    if (head_marker != "_SM3_"sv)
-      throw std::runtime_error(
-        "Invalid smbios type - header mark is not '_SM3_'");
+    static WinSMBIOSData load() {
+      WinSMBIOSData win_smbios;
+      win_smbios.data.resize(GetSystemFirmwareTable('RSMB', 0, nullptr, 0));
+      if (win_smbios.data.empty() ||
+          !GetSystemFirmwareTable('RSMB', 0, win_smbios.data.data(), win_smbios.data.size()))
+        throw std::runtime_error("cannot get SMBIOS firmware table");
+      return win_smbios;
+    }
+  };
 
-    // https://github.com/mirror/dmidecode/blob/484f8935b0fc768841f43fa388b191196b5e12fd/dmidecode.c#L5721C6-L5721C26
-    if (header_data[0x06] > 0x20)
-      throw std::runtime_error("Entry point length too large");
-
-    Version ver;
-    ver.major_version = header_data[0x07];
-    ver.minor_version = header_data[0x08];
-    ver.dmi_revision = header_data[0x09];
-    version = ver;
-#else
-    #error Unsupported OS family
 #endif
-    return version.value();
-  }
 
   static std::vector<Byte> load_raw_data() {
     std::vector<Byte> data;
 #ifdef _WIN32
-    // TODO: todo
+    data = std::move(WinSMBIOSData::load().data);
+    // erase header
+    data.erase(data.begin(), data.begin() + sizeof(WinSMBIOSData::RawSMBIOSHeaderData));
 #elif __linux__
     data = read_file("/sys/firmware/dmi/tables/DMI");
 #else

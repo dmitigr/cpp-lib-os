@@ -26,14 +26,10 @@ int main()
     }
 #endif
 
-#ifdef _WIN32
-    const auto header = smbios.header();
-    cout << "Used 2.0 calling method: " << header.used_20_calling_method << endl;
-    cout << "Major version: " << header.major_version << endl;
-    cout << "Minor version: " << header.minor_version << endl;
-    cout << "DMI revision: " << header.dmi_revision << endl;
-    cout << "Length: " << header.length << endl;
-#endif
+    const auto version = fw::Smbios_table::version();
+    cout << "Major version: " << (int)version.major_version << endl;
+    cout << "Minor version: " << (int)version.minor_version << endl;
+    cout << "DMI revision: " << (int)version.dmi_revision << endl;
 
     const auto bios_info = smbios.bios_info();
     cout << "BIOS vendor: " << bios_info.vendor.value_or("") << endl;
