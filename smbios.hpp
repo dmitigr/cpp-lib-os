@@ -562,14 +562,14 @@ public:
       auto& info = result.back();
 
       if (header.is_version_ge(2,0)) {
-        info.socket = std::move(field<decltype(info.socket)>(s, 0x04));
+        info.socket = field<decltype(info.socket)>(s, 0x04);
         info.type = static_cast<decltype(info.type)>(
           field<std::underlying_type_t<decltype(info.type)>>(s, 0x05)
         );
         info.family = static_cast<decltype(info.family)>(field<Byte>(s, 0x06));
-        info.manufacturer = std::move(field<decltype(info.manufacturer)>(s, 0x07));
+        info.manufacturer = field<decltype(info.manufacturer)>(s, 0x07);
         info.id = field<decltype(info.id)>(s, 0x08);
-        info.version = std::move(field<decltype(info.version)>(s, 0x10));
+        info.version = field<decltype(info.version)>(s, 0x10);
         info.voltage = field<decltype(info.voltage)>(s, 0x11);
         info.external_clock = field<decltype(info.external_clock)>(s, 0x12);
         info.max_speed = field<decltype(info.max_speed)>(s, 0x14);
@@ -587,9 +587,9 @@ public:
       }
 
       if (header.is_version_ge(2,3)) {
-        info.serial_number = std::move(field<decltype(info.serial_number)>(s, 0x20));
-        info.asset_tag = std::move(field<decltype(info.asset_tag)>(s, 0x21));
-        info.part_number = std::move(field<decltype(info.part_number)>(s, 0x22));
+        info.serial_number = field<decltype(info.serial_number)>(s, 0x20);
+        info.asset_tag = field<decltype(info.asset_tag)>(s, 0x21);
+        info.part_number = field<decltype(info.part_number)>(s, 0x22);
       }
 
       if (header.is_version_ge(2,5)) {
