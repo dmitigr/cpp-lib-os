@@ -60,7 +60,7 @@ public:
 
     [[nodiscard]] bool is_version_ge(const Byte major, const Byte minor) const noexcept
     {
-      return major_version >= major && minor_version >= minor;
+      return major_version > major || major_version == major && minor_version >= minor;
     }
   };
   static_assert(std::is_standard_layout_v<Header>);
