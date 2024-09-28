@@ -471,10 +471,8 @@ public:
     : data_(size)
   {
     std::memcpy(data_.data(), data, size);
-#ifdef _WIN32
     if (size != header().length)
       throw std::invalid_argument{"invalid SMBIOS firmware table provided"};
-#endif
   }
 
   static Smbios_table from_system()
@@ -698,11 +696,7 @@ private:
   {
     DMITIGR_ASSERT(s);
     bool is_prev_char_zero{};
-#ifdef _WIN32
     const std::ptrdiff_t length = data_.size() - sizeof(Header);
-#else
-    const std::ptrdiff_t length = data_.size();
-#endif
     const auto* const fst = first_structure();
     for (const char* ptr{unformed_section(s)};
          ptr + 1 - reinterpret_cast<const char*>(fst) < length; ++ptr) {
