@@ -528,7 +528,7 @@ public:
       rd.resize(sizeof(Header) + dmi_size);
       if (!dmi.read(reinterpret_cast<char*>(rd.data()) + sizeof(Header), dmi_size))
         throw std::runtime_error{"cannot read "+dmi_path.string()};
-      reinterpret_cast<Header*>(rd.data())->length = dmi_size;
+      reinterpret_cast<Header*>(rd.data())->length = rd.size();
     }
 #else
     #error Unsupported OS family
