@@ -26,14 +26,13 @@ int main()
     }
 #endif
 
-#ifdef _WIN32
     const auto header = smbios.header();
-    cout << "Used 2.0 calling method: " << header.used_20_calling_method << endl;
-    cout << "Major version: " << header.major_version << endl;
-    cout << "Minor version: " << header.minor_version << endl;
-    cout << "DMI revision: " << header.dmi_revision << endl;
+    cout << "Used 2.0 calling method: " <<
+      static_cast<int>(header.used_20_calling_method) << endl;
+    cout << "Major version: " << static_cast<int>(header.major_version) << endl;
+    cout << "Minor version: " << static_cast<int>(header.minor_version) << endl;
+    cout << "DMI revision: " << static_cast<int>(header.dmi_revision) << endl;
     cout << "Length: " << header.length << endl;
-#endif
 
     const auto bios_info = smbios.bios_info();
     cout << "BIOS vendor: " << bios_info.vendor.value_or("") << endl;
@@ -56,44 +55,41 @@ int main()
     } else
       cout << "Baseboard info is not provided." << endl;
 
-#ifdef _WIN32
     {
+      cout << "Processors:" << endl;
       const auto processors = smbios.processors_info();
-      for (const auto& info : processors) {
-        std::cout << " ------------------------------------------------ " << std::endl;
-        std::cout << "socket: " << info.socket.value_or("NULL") << std::endl;
-        std::cout << "type: " << (int)info.type << std::endl;
-        std::cout << "family: " << (int)info.family << std::endl;
-        std::cout << "manufacturer: " << info.manufacturer.value_or("NULL") << std::endl;
-        std::cout << "id: " << info.id << std::endl;
-        std::cout << "processor_version: " << info.version.value_or("NULL") << std::endl;
-        std::cout << "voltage: " << (int)info.voltage << std::endl;
-        std::cout << "external_clock: " << info.external_clock << std::endl;
-        std::cout << "max_speed: " << info.max_speed << std::endl;
-        std::cout << "current_speed: " << info.current_speed << std::endl;
-        std::cout << "status: " << (int)info.status << std::endl;
-        std::cout << "processor_upgrade: " << (int)info.upgrade << std::endl;
-        std::cout << "l1_cache_handle: " << info.l1_cache_handle << std::endl;
-        std::cout << "l2_cache_handle: " << info.l2_cache_handle << std::endl;
-        std::cout << "l3_cache_handle: " << info.l3_cache_handle << std::endl;
-        std::cout << "serial_number: " << info.serial_number.value_or("NULL") << std::endl;
-        std::cout << "asset_tag: " << info.asset_tag.value_or("NULL") << std::endl;
-        std::cout << "part_number: " << info.part_number.value_or("NULL") << std::endl;
-        std::cout << "core_count: " << (int)info.core_count << std::endl;
-        std::cout << "core_enabled: " << (int)info.core_enabled << std::endl;
-        std::cout << "thread_count: " << (int)info.thread_count << std::endl;
-        std::cout << "characteristics: " << info.characteristics << std::endl;
-        std::cout << "family_2: " << (std::uint64_t)info.family_2 << std::endl;
-        std::cout << "core_count_2: " << info.core_count_2 << std::endl;
-        std::cout << "core_enabled_2: " << info.core_enabled_2 << std::endl;
-        std::cout << "thread_count_2: " << info.thread_count_2 << std::endl;
-        std::cout << "thread_enabled: " << info.thread_enabled << std::endl;
-        std::cout << " ------------------------------------------------ " << std::endl;
-        std::cout << std::endl;
+      for (std::size_t i{}; i < processors.size(); ++i) {
+        const auto& proc = processors[i];
+        cout << "  Processor "<<i<<":" << endl;
+        cout << "    socket: " << proc.socket.value_or("NULL") << endl;
+        cout << "    type: " << static_cast<int>(proc.type) << endl;
+        cout << "    family: " << static_cast<int>(proc.family) << endl;
+        cout << "    manufacturer: " << proc.manufacturer.value_or("NULL") << endl;
+        cout << "    id: " << proc.id << endl;
+        cout << "    processor_version: " << proc.version.value_or("NULL") << endl;
+        cout << "    voltage: " << static_cast<int>(proc.voltage) << endl;
+        cout << "    external_clock: " << proc.external_clock << endl;
+        cout << "    max_speed: " << proc.max_speed << endl;
+        cout << "    current_speed: " << proc.current_speed << endl;
+        cout << "    status: " << static_cast<int>(proc.status) << endl;
+        cout << "    processor_upgrade: " << static_cast<int>(proc.upgrade) << endl;
+        cout << "    l1_cache_handle: " << proc.l1_cache_handle << endl;
+        cout << "    l2_cache_handle: " << proc.l2_cache_handle << endl;
+        cout << "    l3_cache_handle: " << proc.l3_cache_handle << endl;
+        cout << "    serial_number: " << proc.serial_number.value_or("NULL") << endl;
+        cout << "    asset_tag: " << proc.asset_tag.value_or("NULL") << endl;
+        cout << "    part_number: " << proc.part_number.value_or("NULL") << endl;
+        cout << "    core_count: " << static_cast<int>(proc.core_count) << endl;
+        cout << "    core_enabled: " << static_cast<int>(proc.core_enabled) << endl;
+        cout << "    thread_count: " << static_cast<int>(proc.thread_count) << endl;
+        cout << "    characteristics: " << proc.characteristics << endl;
+        cout << "    family_2: " << static_cast<std::uint64_t>(proc.family_2) << endl;
+        cout << "    core_count_2: " << proc.core_count_2 << endl;
+        cout << "    core_enabled_2: " << proc.core_enabled_2 << endl;
+        cout << "    thread_count_2: " << proc.thread_count_2 << endl;
+        cout << "    thread_enabled: " << proc.thread_enabled << endl;
       }
     }
-#endif
-
   } catch (const std::exception& e) {
     std::clog << "error: " << e.what() << std::endl;
     return 1;

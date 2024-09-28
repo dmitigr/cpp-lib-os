@@ -26,6 +26,7 @@
 #include "../winbase/exceptions.hpp"
 #endif
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -50,7 +51,6 @@ public:
   using Dword = std::uint32_t;
   using Qword = std::uint64_t;
 
-#ifdef _WIN32
   struct Header final {
     Byte used_20_calling_method{};
     Byte major_version{};
@@ -60,16 +60,16 @@ public:
 
     [[nodiscard]] bool is_version_ge(const Byte major, const Byte minor) const noexcept
     {
-      return major_version > major || major_version == major && minor_version >= minor;
+      return major_version > major ||
+        (major_version == major && minor_version >= minor);
     }
   };
   static_assert(std::is_standard_layout_v<Header>);
-#endif
 
   struct Structure {
-    Byte type{};
-    Byte length{};
-    Word handle{};
+    Byte structure_type{};
+    Byte structure_length{};
+    Word structure_handle{};
   };
   static_assert(std::is_standard_layout_v<Structure>);
 
@@ -486,26 +486,62 @@ public:
     if (rd.empty() || !GetSystemFirmwareTable('RSMB', 0, rd.data(), rd.size()))
       throw winbase::Sys_exception{"cannot get SMBIOS firmware table"};
 #elif __linux__
-    const std::filesystem::path dmi_path{"/sys/firmware/dmi/tables/DMI"};
-    std::ifstream dmi{dmi_path, std::ios::binary};
-    if (!dmi)
-      throw std::runtime_error{"cannot open "+dmi_path.string()};
+    // Read entry point as Header.
+    {
+      const std::filesystem::path entry_point_path{"/sys/firmware/dmi/tables/"
+        "smbios_entry_point"};
+      std::ifstream entry_point{entry_point_path, std::ios::binary};
+      if (!entry_point)
+        throw std::runtime_error{"cannot open "+entry_point_path.string()};
+      constexpr const std::streamoff sm2_entry_point_size{31};
+      constexpr const std::streamoff sm3_entry_point_size{24};
+      const auto entry_point_size = seekg_size(entry_point);
+      if (entry_point_size < std::min(sm2_entry_point_size, sm3_entry_point_size))
+        throw std::runtime_error{"cannot get SMBIOS table: invalid entry point"};
+      std::string header;
+      header.resize(entry_point_size);
+      if (!entry_point.read(header.data(), header.size()))
+        throw std::runtime_error{"cannot read "+entry_point_path.string()};
+      constexpr const std::string_view sm2_anchor{"_SM_"};
+      constexpr const std::string_view sm3_anchor{"_SM3_"};
+      rd.resize(sizeof(Header));
+      auto* const h = reinterpret_cast<Header*>(rd.data());
+      if (std::string_view{header.data(), sm2_anchor.size()} == sm2_anchor) {
+        h->major_version = header[0x06];
+        h->minor_version = header[0x07];
+        h->dmi_revision = header[0x0A];
+      } else if (std::string_view{header.data(), sm3_anchor.size()} == sm3_anchor) {
+        h->major_version = header[0x07];
+        h->minor_version = header[0x08];
+        h->dmi_revision = header[0x0A];
+      } else
+        throw std::runtime_error{"cannot get SMBIOS table: unsupported version"};
+      h->used_20_calling_method = 0;
+    }
 
-    rd.resize(seekg_size(dmi));
-    if (!dmi.read(reinterpret_cast<char*>(rd.data()), rd.size()))
-      throw std::runtime_error{"cannot read "+dmi_path.string()};
+    // Read DMI (SMBIOS Structure Table) and complete header.
+    {
+      const std::filesystem::path dmi_path{"/sys/firmware/dmi/tables/DMI"};
+      std::ifstream dmi{dmi_path, std::ios::binary};
+      if (!dmi)
+        throw std::runtime_error{"cannot open "+dmi_path.string()};
+      DMITIGR_ASSERT(rd.size() == sizeof(Header));
+      const auto dmi_size = seekg_size(dmi);
+      rd.resize(sizeof(Header) + dmi_size);
+      if (!dmi.read(reinterpret_cast<char*>(rd.data()) + sizeof(Header), dmi_size))
+        throw std::runtime_error{"cannot read "+dmi_path.string()};
+      reinterpret_cast<Header*>(rd.data())->length = dmi_size;
+    }
 #else
     #error Unsupported OS family
 #endif
     return result;
   }
 
-#ifdef _WIN32
   Header header() const
   {
     return *reinterpret_cast<const Header*>(data_.data());
   }
-#endif
 
   const std::vector<Byte>& raw() const noexcept
   {
@@ -548,14 +584,13 @@ public:
     return result;
   }
 
-#ifdef _WIN32
   std::vector<Processor_info> processors_info() const
   {
     const auto header = this->header();
 
     std::vector<Processor_info> result;
     for (auto* s = first_structure(); s; s = next_structure(s)) {
-      if (s->type != 0x04)
+      if (s->structure_type != 0x04)
         continue;
 
       result.emplace_back(make_structure<Processor_info>(*s));
@@ -617,7 +652,6 @@ public:
     }
     return result;
   }
-#endif
 
 private:
   std::vector<Byte> data_;
@@ -629,9 +663,9 @@ private:
   {
     static_assert(std::is_base_of_v<Structure, S>);
     S result;
-    result.Structure::type = s.type;
-    result.length = s.length;
-    result.handle = s.handle;
+    result.structure_type = s.structure_type;
+    result.structure_length = s.structure_length;
+    result.structure_handle = s.structure_handle;
     return result;
   }
 
@@ -639,7 +673,7 @@ private:
     const bool no_throw_if_not_found = false) const
   {
     for (auto* s = first_structure(); s; s = next_structure(s)) {
-      if (s->type == type)
+      if (s->structure_type == type)
         return s;
     }
     if (no_throw_if_not_found)
@@ -652,16 +686,12 @@ private:
   static const char* unformed_section(const Structure* const s) noexcept
   {
     DMITIGR_ASSERT(s);
-    return reinterpret_cast<const char*>(s) + s->length;
+    return reinterpret_cast<const char*>(s) + s->structure_length;
   }
 
   const Structure* first_structure() const noexcept
   {
-#ifdef _WIN32
     return reinterpret_cast<const Structure*>(data_.data() + sizeof(Header));
-#else
-    return reinterpret_cast<const Structure*>(data_.data());
-#endif
   }
 
   const Structure* next_structure(const Structure* const s) const noexcept
