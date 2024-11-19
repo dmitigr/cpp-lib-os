@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <cerrno>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 
