@@ -24,6 +24,8 @@
 #include <unistd.h>
 #endif
 
+#include <fstream>
+
 namespace dmitigr::os {
 
 #ifdef _WIN32
@@ -42,6 +44,15 @@ inline Pid pid() noexcept
 #else
   return ::getpid();
 #endif
+}
+
+/// Creates the file at `path` and dumping the PID into it.
+inline void dump_pid(const std::filesystem::path& path)
+{
+  if (std::ofstream pf{path, std::ios_base::trunc})
+    pf << pid() << std::endl;
+  else
+    throw Exception{"cannot open PID file " + path.string()};
 }
 
 } // namespace dmitigr::os
