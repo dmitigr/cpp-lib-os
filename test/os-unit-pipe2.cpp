@@ -3,7 +3,7 @@
 // Copyright 2023 Dmitry Igrishin
 
 #include "../../base/assert.hpp"
-#include "../../fsx/filesystem.hpp"
+#include "../../base/fsx.hpp"
 #include "../../os/ipc_pipe.hpp"
 
 #include <sys/types.h>
