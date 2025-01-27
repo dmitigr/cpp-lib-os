@@ -43,7 +43,7 @@ set(dmitigr_os_headers
 set(dmitigr_os_implementations
   )
 
-if (WIN32)
+if(WIN32)
   list(APPEND dmitigr_os_headers windows.hpp)
 endif()
 
@@ -52,6 +52,9 @@ endif()
 # ------------------------------------------------------------------------------
 
 set(dmitigr_libs_os_deps base)
+if(WIN32)
+  list(APPEND dmitigr_libs_os_deps dmitigr_winbase)
+endif()
 
 # ------------------------------------------------------------------------------
 # Tests
