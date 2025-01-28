@@ -17,6 +17,10 @@
 #ifndef DMITIGR_OS_ERROR_HPP
 #define DMITIGR_OS_ERROR_HPP
 
+#ifndef _WIN32
+#include "../nix/error.hpp"
+#endif
+
 #include "../base/assert.hpp"
 #include "exceptions.hpp"
 #include "last_error.hpp"
@@ -37,16 +41,7 @@ inline std::string error_message(const int code)
   else
     return buf;
 #else
-  char buf[1024];
-#if ((_POSIX_C_SOURCE >= 200112L) && !_GNU_SOURCE) || __APPLE__
-  const int e = ::strerror_r(code, buf, sizeof(buf));
-  return !e ? buf : "unknown error";
-#elif _GNU_SOURCE
-  const char* const msg = ::strerror_r(code, buf, sizeof(buf));
-  return msg ? msg : "unknown error";
-#else
-#error Supported version of strerror_r() is not available.
-#endif
+  return nix::error_message(code);
 #endif
 }
 

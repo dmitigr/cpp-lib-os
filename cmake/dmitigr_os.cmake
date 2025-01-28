@@ -52,7 +52,9 @@ endif()
 
 set(dmitigr_libs_os_deps base)
 if(WIN32)
-  list(APPEND dmitigr_libs_os_deps dmitigr_winbase)
+  list(APPEND dmitigr_libs_os_deps winbase)
+elseif(UNIX)
+  list(APPEND dmitigr_libs_os_deps nix)
 endif()
 
 # ------------------------------------------------------------------------------
