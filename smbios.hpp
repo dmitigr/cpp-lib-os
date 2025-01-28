@@ -18,9 +18,9 @@
 #define DMITIGR_OS_SMBIOS_HPP
 
 #include "../base/assert.hpp"
+#include "../base/rnd.hpp"
 #include "../base/stream.hpp"
 #include "../base/traits.hpp"
-#include "../rnd/uuid.hpp"
 #include "error.hpp"
 #ifdef _WIN32
 #include "../winbase/exceptions.hpp"
