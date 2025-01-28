@@ -34,7 +34,6 @@ set(dmitigr_os_headers
   environment.hpp
   error.hpp
   exceptions.hpp
-  ipc_pipe.hpp
   last_error.hpp
   pid.hpp
   types_fwd.hpp
@@ -61,8 +60,6 @@ endif()
 # ------------------------------------------------------------------------------
 
 if(DMITIGR_LIBS_TESTS)
-  if(LINUX)
-    set(dmitigr_os_tests pipe pipe2 slow_write smbios)
-  endif()
+  set(dmitigr_os_tests smbios)
   set(dmitigr_os_tests_target_link_libraries dmitigr_base)
 endif()
